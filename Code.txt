@@ -1,0 +1,921 @@
+
+/* Comparison of Prim’s algorithm implementation using simple scheme and Fibonacci heap in C++.
+The Prim’s algorithm was implemented using two different Data Structures: Simple Scheme and Fibonacci Heap. Performance of these two was compared. This project was implemented in C++.
+
+*/
+
+
+
+
+
+#include <iostream>
+#include <stdio.h>
+#include <stdlib.h>
+#include <algorithm>
+#include <vector>
+#include <list>
+#include <fstream>
+#include <string.h>
+#include <time.h>
+#include <queue>
+#include <bitset>
+#include <time.h>
+#include <sys/time.h>
+#include <math.h>
+#include <sstream>
+
+using namespace std;
+int minimumCostSpanningTree,minimumCostSpanningTree1;
+//Class to store a vertex and its corresponding w, which is used in Prim's using Fibonacci Heap
+class C
+{
+  public:
+   int vertex;
+   int w;
+
+  C(int vertex, int w)
+   {
+     this->vertex = vertex;
+     this->w = w;
+   }
+};
+
+//Class For a Fibonacci Heap Node
+class Fn
+{
+   public:
+
+     int deg;
+     Fn *child;
+     C *data;                       //Vertex and its W
+     Fn *right;
+     Fn *left;
+     Fn *parent;
+     bool childCut;
+
+     Fn(C *data)
+       {
+          if(data == NULL)
+            {
+              cout<<"Data Argument is Null. Exiting..";
+              exit(1);
+            }
+          this->data = data;
+          right=left=parent=child=NULL;
+          deg=0;
+          childCut=false;
+       }
+};
+
+//Fibonacci Heap
+class FibonacciHeap
+{
+   public:
+
+     int n;
+     Fn *min;                //Points minimum node in heap
+
+     FibonacciHeap()
+       {
+         min = NULL;
+         n = 0;
+       }
+
+     void insert(Fn *node)   //Insert a new node
+       {
+          if(min == NULL)                   //If null, make it min
+            {
+              min = node;
+              min->right=min->left=min;
+            }
+          else                              //Else add it and update min if needed
+            {
+              node->right = min->right;
+              node->left = min;
+              min->right->left = node;
+              min->right = node;
+              if(node->data->w < min->data->w)
+                 min = node;
+            }
+       }
+     
+       
+
+     //returns pointer to minimum w node in list and sets parent as NULL and childcut as false in all nodes in list if specified.
+     Fn* minWNode(Fn *list, bool setParentAsNull, bool setChildCutAsFalse)
+       {
+          Fn *listitr = list->right;
+          int minW = list->data->w;
+          Fn *mpt = list;
+
+          if(setParentAsNull == true)
+            list->parent=NULL;
+          if(setChildCutAsFalse == true)
+            list->childCut=false;
+
+          while(listitr != list)
+            {
+              if(listitr->data->w < minW)
+                {
+                   minW = listitr->data->w;
+                   mpt = listitr;
+                }
+              if(setParentAsNull == true)
+                 listitr->parent = NULL;
+              if(setChildCutAsFalse == true)
+                 listitr->childCut = false;
+              listitr = listitr->right;
+            }
+          return mpt;
+       }
+
+     //Combines a list pointed by list with the top level list
+     void mergee(Fn *list)
+       {
+          if(list == NULL)
+            {
+              return;
+            }
+
+          //Find minimum w node in list
+          Fn *mpt = minWNode(list, true, false);
+
+          //Merge list with top level list
+          list->left->right = min->right;
+          min->right->left = list->left;
+          min->right = list;
+          list->left = min;
+
+          //Update min pointer
+          if(mpt->data->w < min->data->w)
+            {
+              min = mpt;
+            }
+       }
+
+     //Removes minimum node and returns corresponding vertex and min w
+     C* removeMin()
+      {
+        //no min
+        if(min == NULL)
+          return NULL;
+
+        //Only one top level root
+        if(min->right==min && min->left==min)
+          {
+             if(min->child == NULL)         //has no child
+              {
+                 C* data = min->data;
+                 min = NULL;
+                 return data;
+              }
+             else                           //has childs
+              {
+                 Fn *mpt = minWNode(min->child, true, false);
+                 C *data = min->data;
+                 min = mpt;
+                 pairwiseCombine();
+                 return data;
+              }
+          }
+        else                                //More than one top level roots
+          {
+
+            //remove min from top level list
+            min->left->right = min->right;
+            min->right->left = min->left;
+
+            Fn *minTemp = min;
+
+            //Find new min of remaining siblings of min
+            min = minWNode(minTemp->right, false, false);
+
+            //Combine childrens to top level and update min
+            mergee(minTemp->child);
+
+            //Perform a pairwise combine
+            pairwiseCombine();
+
+            return minTemp->data;
+          }
+      }
+
+      //Pairwise Combine the top level list roots with equal degs
+      void pairwiseCombine()
+        {
+           vector<Fn*> treeOfDeg;
+           Fn *itr = min;
+
+           //Store pointers to each trees
+           vector<Fn*> allTrees;
+           allTrees.push_back(itr);
+           itr = itr->right;
+           while(itr != min)
+             {
+                allTrees.push_back(itr);
+                itr = itr->right;
+             }
+
+           //Iterate through each tree
+           vector<Fn*>::iterator startItr = allTrees.begin();
+           vector<Fn*>::iterator endItr = allTrees.end();
+           while(startItr != endItr)
+             {
+                Fn * linkedPtr = (*startItr);
+                int deg =  linkedPtr->deg;
+
+                //Run until current tree's complete combine is completed
+                while(true)
+                  {
+                    //Making Vector for storing per deg tree big enough to accomodate max deg
+                    while(deg >= treeOfDeg.size() )
+                         treeOfDeg.push_back(NULL);
+
+                    if(treeOfDeg[deg] == NULL)
+                      {
+                        treeOfDeg[deg] = linkedPtr;
+                        break;
+                      }
+                    else
+                      {
+                        linkedPtr = linkRoots(linkedPtr, treeOfDeg[deg]);
+                        treeOfDeg[deg] = NULL;
+                        deg = deg + 1;
+                      }
+                  }
+
+                startItr++;
+             }
+
+           //Create a root level list with updated min pointer from combined trees
+           min = NULL;
+           int minW;
+           startItr = treeOfDeg.begin();
+           endItr = treeOfDeg.end();
+           while(startItr != endItr)
+             {
+                //If certain deg exist, add it to list
+                if( (*startItr) != NULL)
+                  {
+                    if(min == NULL)         //If minimum is null, make this node minimum
+                      {
+                         min = (*startItr);
+                         min->left = min->right = min;
+                         minW = (*startItr)->data->w;
+                      }
+                    else                    //If min exist
+                      {
+                         //Add the tree to list
+                         min->right->left = (*startItr);
+                         (*startItr)->right = min->right;
+                         min->right = (*startItr);
+                         (*startItr)->left = min;
+
+                         //Update min pointer
+                         if( (*startItr)->data->w < minW )
+                            {
+                               minW = (*startItr)->data->w;
+                               min = (*startItr);
+                            }
+                      }
+                  }
+                startItr++;
+             }
+        }
+      //Decrease W of a node pointed by ndW to a value pointed by new w
+      void decreaseW(Fn *ndW, int newW)
+        {
+
+           if(ndW == NULL)
+             {
+               cout<<"Argument is null for descrease w: ..Exiting ";
+               exit(0);
+             }
+
+           //If new w is not smaller than existing w, return
+           if(ndW->data->w < newW)
+             {
+               cout<<"Already smaller w present: "<<endl;
+               return;
+             }
+
+           //Descrease w
+           ndW->data->w = newW;
+
+           //If no parent exist than no min tree property violation and return.
+           if(ndW->parent == NULL)
+             {
+                if(min->data->w > ndW->data->w)
+                  min = ndW;
+                return;
+             }
+
+           //If parent w is still smaller than decreased child than no min tree property violation and return.
+           if( newW >= ndW->parent->data->w )
+              return;
+
+           Fn *nr = ndW;
+
+           //New w is smaller than its parent's and min tree violation. Add the node to top level list and do cascading cut
+           do{
+               //Remove node from list
+               nr->left->right = nr->right;
+               nr->right->left = nr->left;
+
+               //If parent points to this child, update the parent's child pointer
+               if(nr->parent->child = nr)
+                 {
+                   //If the node has no siblings, make parent->child as null
+                   if(nr->right==nr && nr->left==nr)
+                     {
+                        nr->parent->child = NULL;
+                     }
+                   else //If has siblings make parent point to sibling
+                     {
+                        nr->parent->child = nr->right;
+                     }
+                 }
+
+               //Merge the node itself to top level list
+               nr->right = nr;
+               nr->left = nr;
+               Fn *temp = nr->parent;
+               mergee(nr);
+
+               nr = temp;
+               nr->deg -=  1;
+
+              } while(nr->parent != NULL && nr->childCut == true );
+
+           if(nr != NULL)
+              nr->childCut = true;
+        }
+
+      //Make one root child of another root. Larger root becomes child of smaller root. Pointer to smaller root is returned.
+      Fn* linkRoots(Fn *r1, Fn *r2)
+        {
+           //Makes r1 to have smaller root and r2 to have larger root
+           if(r2->data->w < r1->data->w)
+             {
+                Fn *temp = r1;
+                r1 = r2;
+                r2 = temp;
+             }
+
+           //If r1 has childs, add r2 to siblings list of r1's children
+           if(r1->child != NULL)
+             {
+               r2->right = r1->child->right;
+               r1->child->right->left = r2;
+               r1->child->right = r2;
+               r2->left = r1->child;
+               r2->parent = r1;
+               r2->childCut = false;
+             }
+           else                        //Just make r2 child of r1
+             {
+               r1->child = r2;
+               r2->parent = r1;
+               r2->childCut = false;
+               r2->right = r2;
+               r2->left = r2;
+             }
+
+           r1->deg += 1;
+           return r1;
+        }
+
+};
+
+//Node structure to store edges in adjacency list of a vertex
+class Enode
+{
+  public:
+    int n1;               //Vertex whose adjacency list contains this node
+    int n2;          //Vertex who is connected to source vertex
+    int weight;                     //Weight of the edge from source to destination
+
+    Enode(int n1, int n2, int weight)
+      {
+        this->n1 = n1;
+        this->n2 = n2;
+        this->weight = weight;
+      }
+
+    bool operator== (Enode &rhs)       //Returns true if two edge nodes are same
+      {
+        return( ( this->n1 == rhs.n1 ) && ( this->n2 == rhs.n2 ) && ( this->weight == rhs.weight ) );
+      }
+};
+
+//Graph of containing vertices, their connectivity with weights of edges.
+class Graph
+{
+
+  public:
+    int N;
+    int e;
+    vector<list<Enode *> *> *al;
+    bool **ea;
+
+  public:
+    Graph(int N)
+     {
+       this->N = N;
+       al = new vector<list<Enode *> *>;
+
+       for(int i=0; i<N; i++)
+         {
+           al->push_back(NULL);
+         }
+
+       ea = new bool* [N];
+       for(int i=0;i<N;i++)
+         ea[i] = new bool[N];
+     }
+
+    //Re-Allocate graph
+    void reallocate(int N)
+     {
+       if(this->N > 0)
+         {
+          //delete previous adjacency list
+          for(int i=0; i< this->al->size(); i++)
+            {
+              if( (*al)[i] != NULL )
+                {
+                  list<Enode*>::iterator strit = (*al)[i]->begin();
+                  list<Enode*>::iterator endit = (*al)[i]->end();
+                  while(strit != endit)
+                    {
+                       if( (*strit) != NULL)
+                         delete (*strit);
+                       strit++;
+                    }
+                 delete (*al)[i];
+                }
+            }
+          if(al != NULL)
+          delete al;
+         }
+       this->N = N;
+
+       //Reallocate adjacency list
+       al = new vector<list<Enode *> *>;
+       for(int i=0; i<N; i++)
+         {
+           al->push_back(NULL);
+         }
+
+
+       ea = new bool* [N];
+       for(int i=0;i<N;i++)
+         ea[i] = new bool[N];
+     }
+
+    void random(int density)
+     {
+        srand(time(NULL));
+
+        //Total edges possible
+        double totalEdgesPossible = ( ( N * (N-1 ) ) / (2.00) );
+        //cout<<"Total Edges possible: "<<totalEdgesPossible<<endl;
+
+        //Number of edges to Add based on density
+        double eToAdd = (density/100.00) * totalEdgesPossible;
+        //cout<<"Number Of Edges To Add: "<<eToAdd<<endl;
+
+        double i = 0 ;
+        double tryWithNoChanges = 0;
+        double lastFound = false;
+
+        while(i< eToAdd)
+          {
+             //Generate random edge and cost.
+             int startVertex = rand() % N;
+             int endVertex = rand() % N;
+             int cost = (rand() % 1000) + 1;
+
+             bool present = ea[startVertex][endVertex] && ea[endVertex][startVertex];
+             if((startVertex != endVertex) && !present)
+                {
+                  addEdge(startVertex, endVertex, cost);
+                  i++;
+                }
+
+             if(!lastFound && (present || startVertex==endVertex) )
+               tryWithNoChanges++;
+
+             if(lastFound && (present || startVertex==endVertex) )
+               tryWithNoChanges=1;
+
+             //If no edge add since 1000 continuous tries
+             if(tryWithNoChanges == 1000)
+               {
+                 //cout<<"Percentage Completed: "<< (i/eToAdd)*100.00<<endl;
+                 break;
+               }
+
+             lastFound = !present && startVertex!=endVertex;
+          }
+
+        //cout<<"Number Of Edges Added: "<<i<<endl;
+
+     }
+
+    //Adds edge for the input startvertex, endvertex and cose and returns true on success
+    bool addEdge(int startVertex, int endVertex, int cost)
+       {
+         ea[startVertex][endVertex] = ea[endVertex][startVertex] = true;
+         //cout<<startVertex<<" "<<endVertex<<endl;
+
+         //Create edge node for adjacency list of start vertex and end vertex each
+         Enode *forStartVertexList = new Enode(startVertex, endVertex, cost);
+         Enode *forEndVertexList = new Enode(endVertex, startVertex, cost);
+
+         //If adjacency list for start vertex does not exist, add it and add edge
+         if( (*al)[startVertex] == NULL )
+            {
+               list<Enode *> *newList = new list<Enode *>();
+               (*al)[startVertex] = newList;
+               (*al)[startVertex]->push_back(forStartVertexList);
+            }
+         else
+            (*al)[startVertex]->push_back(forStartVertexList);
+
+         //If adjacency list for start vertex does not exist, add it and add edge
+         if( (*al)[endVertex] == NULL )
+            {
+               list<Enode *> *newList = new list<Enode *>();
+               (*al)[endVertex] = newList;
+               (*al)[endVertex]->push_back(forEndVertexList);
+            }
+         else
+            (*al)[endVertex]->push_back(forEndVertexList);
+
+         e++;
+         return true;
+       }
+
+    //Returns true if graph is connected by performing Breadth First Search on graph.
+    bool graphConnectedOrNot()
+       {
+          queue<int> verticesQ;
+          bool verticesVisited[N];
+          for(int i=0; i<N; i++)
+            verticesVisited[i] = false;
+
+          //Choose random start vertex
+          srand(time(NULL));
+          int n1 = rand() % N;
+
+          while((*al)[n1] == NULL)
+               n1 = rand() % N;
+
+          verticesQ.push(n1);
+          verticesVisited[n1] = true;
+
+          //Perform Breadth First Search
+          while(!verticesQ.empty())
+            {
+                int currentV = verticesQ.front();
+                verticesQ.pop();
+                list<Enode*>::iterator startitr = (*al)[currentV]->begin();
+                list<Enode*>::iterator enditr = (*al)[currentV]->end();
+                while(startitr != enditr)
+                  {
+                     if (! verticesVisited[(*startitr)->n2] )
+                       {
+                           verticesVisited[(*startitr)->n2] = true;
+                           verticesQ.push((*startitr)->n2);
+                       }
+                     startitr++;
+                  }
+            }
+
+          //If any node is unconnected return false
+          for(int i=0; i<N; i++)
+            if(verticesVisited[i] == false)
+              return false;
+
+          return true;
+       }
+
+     //Generate a minimum Spanning Tree by Prims algorithm using a simple Array
+     void simplescheme(string filepath)
+       {
+          int w[N];               //Stores the current minimum edge weight to each vertex
+          int parent[N];            //Stores the vertex from which the minimum edge to each vertex exists
+          bool vertexAdded[N];      //Stroes if the vertex is added to spanning tree yet
+          list<int> currentTree;
+
+          for(int i=0; i<N; i++)
+            {
+               w[i]=2000;
+               parent[i]=-1;
+               vertexAdded[i]= false;
+            }
+
+          w[0]=0;
+
+          while(currentTree.size() < N)
+            {
+               int minVertex= -1;
+               int minW= 3000;
+
+               //Remove min for Prim's by tracersing the entire array
+               for(int i=0; i<N; i++)
+                 {
+                    if( vertexAdded[i]==false && w[i]<minW )
+                      {
+                         minW=w[i];
+                         minVertex = i;
+                      }
+                 }
+               vertexAdded[minVertex] = true;
+               currentTree.push_back(minVertex);
+
+               //Relax the all adjacent nodes to minimum node
+               list<Enode*>::iterator startItr = (*al)[minVertex]->begin();
+               list<Enode*>::iterator endItr = (*al)[minVertex]->end();
+               while(startItr != endItr)
+                 {
+                    if( (vertexAdded[(*startItr)->n2] == false) && ( (*startItr)->weight < w[(*startItr)->n2]) )
+                       {
+                          w[(*startItr)->n2] = (*startItr)->weight;
+                          parent[(*startItr)->n2] = minVertex;
+                       }
+                    startItr++;
+                 }
+            }
+
+            //Calculate cost of minimum spanning tree
+            minimumCostSpanningTree = 0;
+            stringstream edges;
+            bool skipfirst = true;
+            while(currentTree.size() != 0)
+              {
+                 int vertex = currentTree.front();
+                 minimumCostSpanningTree += w[vertex];
+                 if(!skipfirst)
+                   edges << parent[vertex] << " " << vertex << endl;
+                 else
+                   skipfirst = false;
+                 currentTree.pop_front();
+              }
+           cout<<minimumCostSpanningTree<<endl;
+           cout<<edges.str();
+       }
+
+     //Generate a minimum Spanning Tree by Prims algorithm using a Fibonacci Heap
+     void fibonaccischeme(string filepath)
+       {
+          vector<Fn*> pointers;
+          int w[N];
+          FibonacciHeap heap;
+          Fn *temp;
+          int parent[N];
+          bool vertexAdded[N];
+
+          for(int i=0; i<N; i++)
+            {
+               temp = new Fn(new C(i, 2000));
+               heap.insert(temp);
+               parent[i] = -1;
+               vertexAdded[i]=false;
+               pointers.push_back(temp);
+               w[i] = 2000;
+            }
+
+          list<int> currentTree;
+
+          heap.decreaseW(pointers[0], 0);
+          w[0]=0;
+          C *min;
+
+          while(currentTree.size() < N)
+            {
+               //Remove Min operation on fibonacci Heap for minimum w
+               min = heap.removeMin();
+
+               vertexAdded[min->vertex] = true;
+               currentTree.push_back(min->vertex);
+
+               list<Enode*>::iterator startItr = (*al)[min->vertex]->begin();
+               list<Enode*>::iterator endItr = (*al)[min->vertex]->end();
+               while(startItr != endItr)
+                 {
+                    if( (vertexAdded[(*startItr)->n2] == false) && ( (*startItr)->weight < w[(*startItr)->n2] ) )
+                       {
+                          //Decrease w operation for fibonacci Heap for adjacent vertices of min node
+                          heap.decreaseW(pointers[(*startItr)->n2], (*startItr)->weight);
+                          w[(*startItr)->n2] = (*startItr)->weight;
+                          parent[(*startItr)->n2] = min->vertex;
+                       }
+                    startItr++;
+                 }
+            }
+
+            //Calculate minimum spanning tree cost
+            minimumCostSpanningTree1 = 0;
+            stringstream edges;
+            bool skipfirst = true;
+            while(currentTree.size() != 0)
+              {
+                 int vertex = currentTree.front();
+                 minimumCostSpanningTree1 += w[vertex];
+                 if(!skipfirst)
+                   edges << parent[vertex] << " " << vertex << endl;
+                 else
+                   skipfirst = false;
+                 currentTree.pop_front();
+              }
+           cout<<minimumCostSpanningTree1<<endl;
+           cout<<edges.str();
+       }
+
+     //Generate grpah from reading a file
+     bool graphf(string filePath)
+       {
+          ifstream ifs(filePath.c_str(), std::fstream::in);
+          char firstLine[256];
+          ifs.getline(firstLine, 256);
+          char *pch = strtok(firstLine, " ");
+          if(pch != NULL)
+            N = atoi(pch);
+
+          reallocate(N);
+          pch = strtok(NULL, " ");
+          int eToAdd;
+          if(pch != NULL)
+            eToAdd = atoi(pch);
+          //cout<<"number of edges: "<<eToAdd;
+
+          int counter=0, startVertex, endVertex, cost;
+
+          //Read edges
+          while( counter<eToAdd && ifs.good() )
+            {
+               char line[256];
+               ifs.getline(line, 256);
+               //Get  start vertex, end vertex and cost
+               pch = strtok(line, " ");
+               if(pch != NULL)
+                 startVertex = atoi(pch);
+               pch = strtok(NULL, " ");
+               if(pch != NULL)
+                 endVertex = atoi(pch);
+               pch = strtok(NULL, " ");
+               if(pch != NULL)
+                 cost = atoi(pch);
+               //cout<<startVertex<<" "<<endVertex<<" "<<cost<<endl;
+               bool present = ea[startVertex][endVertex] && ea[endVertex][startVertex];
+               if(!present)
+                 addEdge(startVertex, endVertex, cost);
+               else
+                 { cout<<"Edge already exists"<<endl;
+                 }
+
+               counter=counter+1;
+            }
+
+       }
+
+     //Print Graph
+     void printGraph()
+       {
+          cout<<"Number of Vertices: "<<N<<endl;
+          cout<<"Number of Edges: "<<e<<endl;
+          cout<<endl<<"Edges: "<<endl;
+          int i=0;
+          int count=0;
+          while(i<al->size())
+            {
+               if(nodePresent(i))
+                 {
+                   list<Enode *>::iterator startItr1 = (*al)[i]->begin();
+                   list<Enode *>::iterator endItr1 = (*al)[i]->end();
+                   while( startItr1 != endItr1)
+                     {
+                       cout<<i<<" "<<(*startItr1)->n2<<" "<<(*startItr1)->weight<<endl;
+                       startItr1++;
+                       count++;
+                     }
+                 }
+               i++;
+            }
+            cout<<"Number of edges in graph is: "<<count;
+      }
+
+     //Returns true if node is present
+     bool nodePresent(int node)
+       {
+         if( (*al)[node] == NULL )
+           return false;
+         else
+           return true;
+       }
+
+     //Compare two edge nodes
+     bool compareAdjacencyNode(Enode* first, Enode* second)
+       {
+         return (first->n1==second->n1 && first->n2==second->n2 && first->weight == second->weight);
+       }
+};
+
+
+
+int main(int argc, char * argv[])
+{
+   struct timeval st;
+   struct timeval et;
+   struct timezone tp;
+
+   int noOfOptions = argc;
+
+   if(argc < 2)
+     {
+        cout<<"No options to program. Exiting..";
+        exit(1);
+     }
+   else
+     {
+       string firstOption = argv[1];
+       if(firstOption == "-r")
+         {
+            if(argc < 4)
+              {
+                 cout<<"Need more input. Exiting..";
+                 exit(0);
+              }
+            else
+              {
+                 int N = atoi(argv[2]);
+                 int density = atoi(argv[3]);
+                 //cout<<N<<" "<<density;
+
+                 //Generate Graph until connected graph Obtained
+                 Graph *g = new Graph(N);
+                 g->random(density);
+                 while(!g->graphConnectedOrNot())
+                   {
+                      cout<<"Graph not Connected: "<<endl;
+                      g->reallocate(N);
+                      g->random(density);
+                   }
+
+                 //Minimum Spanning tree using Simple Scheme
+                 gettimeofday(&st, &tp);
+                 g->simplescheme(" ");
+                 gettimeofday(&et, &tp);
+                 int s=((et.tv_sec-st.tv_sec)*pow(10,6) + ((et.tv_usec-st.tv_usec)));
+                 cout<<"Time taken: "<<s<<" microseconds"<<endl<<endl<<endl;
+
+                 //Minimum Spanning tree using Fibonacci Scheme
+                 gettimeofday(&st, &tp);
+                 g->fibonaccischeme(" ");
+                 gettimeofday(&et, &tp);
+                 int t=((et.tv_sec-st.tv_sec)*pow(10,6) + ((et.tv_usec-st.tv_usec)));
+                 cout<<"Time taken for fibonacci scheme: "<<t<<" microseconds"<<endl;
+                 cout<<"Time taken for simple scheme: "<<s<<" microseconds"<<endl<<endl<<endl;
+                 cout<<"Cost of simple Scheme:  "<<minimumCostSpanningTree<<endl<<"cost of Fibonacci Scheme:  "<<minimumCostSpanningTree1<<endl;
+
+              }
+         }
+       else if(firstOption == "-s")
+         {
+            string filePath = argv[2];
+
+            //Generate graph
+            Graph *g = new Graph(0);
+            g->graphf(filePath);
+
+            //Minimum Spanning tree using Simple Scheme
+            gettimeofday(&st, &tp);
+            g->simplescheme("filePath");
+            gettimeofday(&et, &tp);
+            //cout<<((et.tv_sec-st.tv_sec)*pow(10,6) + ((et.tv_usec-st.tv_usec)))<<" microseconds"<<endl;
+         }
+       else if(firstOption == "-f")
+         {
+            string filePath = argv[2] ;
+
+            //Generate graph
+            Graph *g = new Graph(0);
+            bool result = g->graphf(filePath);
+
+            //Minimum Spanning tree using Fibonacci Scheme
+            gettimeofday(&st, &tp);
+            g->fibonaccischeme("filepath");
+            gettimeofday(&et, &tp);
+            //cout<<((et.tv_sec-st.tv_sec)*pow(10,6) + ((et.tv_usec-st.tv_usec)))<<" microseconds"<<endl;
+         }
+       else
+         {
+           cout<<"Invalid first argument. Exiting..";
+           exit(1);
+         }
+     }
+  return 0;
+
+}
